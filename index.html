@@ -322,7 +322,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
       <div class="settings-section-label">Gemini API Key <span class="free-badge">FREE</span></div>
       <div class="api-key-section">
         <input type="password" id="s-apikey" placeholder="AIza..." oninput="saveSettings()">
-        <div class="api-note">Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a><br>Sign in with Google → Create API Key → Copy &amp; paste here. No credit card needed.</div>
+        <div class="api-note">Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a><br>Sign in with Google → Create API Key → Copy &amp; paste here.</div>
       </div>
     </div>
     <div class="settings-card">
@@ -524,43 +524,102 @@ async function lookupManual() {
   finally { setBtnLoading('lookup-btn','lookup-btn-text',false,'Estimate Calories'); }
 }
 
+/* ==================== UPDATED CALLGEMINI FUNCTION ==================== */
 async function callGemini({type, food, amount, weight}) {
+  if (!state.settings.apiKey) {
+    showToast('⚙️ Please add your Gemini API key in Settings');
+    return;
+  }
+
   const apiKey = state.settings.apiKey;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-  const prompt = `You are a nutritional analyst. Respond ONLY with a single-line valid JSON object. No markdown, no newlines inside strings, no special characters in values.
-Format: {"food":"name","amount":"amount","kcal":0,"protein":0,"carbs":0,"fat":0,"sugar":0,"fiber":0,"sodium":0,"note":"brief note","emoji":"emoji"}
-All numbers are plain numbers. sodium is milligrams. Keep note field very short and simple, no commas or quotes inside it.`;
-  let parts;
-  if (type==='photo') {
-    parts=[
-      {inline_data:{mime_type:pendingMimeType, data:pendingImageBase64}},
-      {text: prompt+`\nIdentify all food in image. ${weight?'Food weighs '+weight+'.':'Estimate portion.'} Give combined totals if multiple items.`}
+
+  const basePrompt = `You are an expert nutritionist. Respond with **ONLY** valid JSON. No explanations, no markdown, no extra text at all.
+
+Required exact format:
+{
+  "food": "clear food name",
+  "amount": "amount description",
+  "kcal": 0,
+  "protein": 0,
+  "carbs": 0,
+  "fat": 0,
+  "sugar": 0,
+  "fiber": 0,
+  "sodium": 0,
+  "note": "short helpful note",
+  "emoji": "🍎"
+}`;
+
+  let parts = [];
+
+  if (type === 'photo') {
+    parts = [
+      { 
+        inline_data: { 
+          mime_type: pendingMimeType || 'image/jpeg', 
+          data: pendingImageBase64 
+        } 
+      },
+      { 
+        text: basePrompt + `\nAnalyze the image and estimate nutritional values. ${weight ? `Total weight ≈ ${weight}.` : 'Estimate a realistic portion size.'} If multiple foods, give combined totals.` 
+      }
     ];
   } else {
-    parts=[{text: prompt+`\nFood: ${food}\nAmount: ${amount}`}];
+    parts = [{ 
+      text: basePrompt + `\nFood: ${food}\nAmount: ${amount || '1 serving'}` 
+    }];
   }
-  const res = await fetch(url, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({contents:[{parts}], generationConfig:{temperature:0.1, maxOutputTokens:300}})
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(()=>({}));
-    throw new Error(err.error?.message || `API error ${res.status}`);
-  }
-  const data = await res.json();
-  let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  text = text.replace(/```json|```/g,'').trim();
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('No JSON in response');
-  text = text.slice(start, end+1);
-  text = text.replace(/[\x00-\x1F\x7F]/g,' ');
-  try { return JSON.parse(text); }
-  catch(e) {
-    text = text.replace(/"note":"([^"]*)"/, (m,p1) => `"note":"${p1.replace(/"/g,"'")}"` );
-    return JSON.parse(text);
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 600,
+          responseMimeType: "application/json"
+        }
+      })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`API Error ${res.status}: ${errText}`);
+    }
+
+    const data = await res.json();
+    let text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+
+    text = text.replace(/```json|```/g, '').trim();
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) text = jsonMatch[0];
+
+    const parsed = JSON.parse(text);
+
+    return {
+      food: parsed.food || "Unknown Food",
+      amount: parsed.amount || "1 serving",
+      kcal: Number(parsed.kcal) || 0,
+      protein: Number(parsed.protein) || 0,
+      carbs: Number(parsed.carbs) || 0,
+      fat: Number(parsed.fat) || 0,
+      sugar: Number(parsed.sugar) || 0,
+      fiber: Number(parsed.fiber) || 0,
+      sodium: Number(parsed.sodium) || 0,
+      note: parsed.note || "",
+      emoji: parsed.emoji || "🍽"
+    };
+
+  } catch (e) {
+    console.error("Gemini Error:", e);
+    throw new Error("Failed to get nutrition data. Try again or check API key.");
   }
 }
+/* ==================== END OF UPDATED FUNCTION ==================== */
 
 function showResult(r) {
   pendingResult = r;
