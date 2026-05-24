@@ -347,7 +347,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
         <input type="password" id="s-apikey" placeholder="AIza..." oninput="saveSettings()">
         <div class="api-note">
           Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a><br>
-          <strong>Important:</strong> Link a billing account in Google Cloud Console for full free tier access.
+          <strong>Important:</strong> Link billing in Google Cloud Console for full free tier access.
         </div>
       </div>
     </div>
@@ -497,8 +497,7 @@ function init() {
   loadState();
   renderHome();
   applySettingsToUI();
-  document.getElementById('home-date').textContent =
-    new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  document.getElementById('home-date').textContent = new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
 }
 
 function loadState() {
@@ -544,6 +543,7 @@ function todayEntries() {
   const today = new Date().toDateString();
   return state.log.filter(e => new Date(e.timestamp).toDateString() === today);
 }
+
 function renderHome() {
   const entries = todayEntries();
   const totals = sumEntries(entries);
@@ -646,7 +646,7 @@ async function lookupManual() {
   }
 }
 
-// Updated to use gemini-2.5-flash as requested
+// Improved Gemini call with robust JSON parsing
 async function callGemini({type, food, amount, weight}) {
   const apiKey = state.settings.apiKey;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
@@ -655,30 +655,24 @@ async function callGemini({type, food, amount, weight}) {
     ? `You are a nutritional analyst. Identify all food items in this image and estimate their combined nutritional values. ${weight ? 'The total food weighs ' + weight + '.' : 'Estimate the portion size from the image.'} If multiple items are visible give combined totals. Be as accurate as possible.`
     : `You are a nutritional analyst. Estimate the complete nutritional values for: ${food}, amount: ${amount}. Be as accurate as possible using standard nutritional databases.`;
 
-  let parts;
-  if (type === 'photo') {
-    parts = [
-      { inline_data: { mime_type: pendingMimeType, data: pendingImageBase64 } },
-      { text: prompt }
-    ];
-  } else {
-    parts = [{ text: prompt }];
-  }
+  let parts = type === 'photo' 
+    ? [{ inline_data: { mime_type: pendingMimeType, data: pendingImageBase64 } }, { text: prompt }]
+    : [{ text: prompt }];
 
   const responseSchema = {
     type: 'OBJECT',
     properties: {
-      food:    { type: 'STRING' },
-      amount:  { type: 'STRING' },
-      emoji:   { type: 'STRING' },
-      note:    { type: 'STRING' },
-      kcal:    { type: 'NUMBER' },
+      food: { type: 'STRING' },
+      amount: { type: 'STRING' },
+      emoji: { type: 'STRING' },
+      note: { type: 'STRING' },
+      kcal: { type: 'NUMBER' },
       protein: { type: 'NUMBER' },
-      carbs:   { type: 'NUMBER' },
-      fat:     { type: 'NUMBER' },
-      sugar:   { type: 'NUMBER' },
-      fiber:   { type: 'NUMBER' },
-      sodium:  { type: 'NUMBER' }
+      carbs: { type: 'NUMBER' },
+      fat: { type: 'NUMBER' },
+      sugar: { type: 'NUMBER' },
+      fiber: { type: 'NUMBER' },
+      sodium: { type: 'NUMBER' }
     },
     required: ['food','amount','kcal','protein','carbs','fat','sugar','fiber','sodium']
   };
@@ -690,7 +684,7 @@ async function callGemini({type, food, amount, weight}) {
       contents: [{ parts }],
       generationConfig: {
         temperature: 0.1,
-        maxOutputTokens: 512,
+        maxOutputTokens: 1024,
         responseMimeType: 'application/json',
         responseSchema
       }
@@ -699,23 +693,37 @@ async function callGemini({type, food, amount, weight}) {
 
   if (!res.ok) {
     let errText = '';
-    try {
-      const err = await res.json();
-      errText = err.error?.message || '';
+    try { 
+      const err = await res.json(); 
+      errText = err.error?.message || ''; 
     } catch(e) {}
-
-    if (errText.includes("limit: 0") || errText.includes("quota") || errText.includes("billing")) {
-      throw new Error("Free tier quota not active. Please link a billing account in Google Cloud Console → Billing.");
-    }
-    if (errText.includes("API key")) {
-      throw new Error("Invalid API key. Check your key in Settings.");
+    if (errText.includes("limit: 0") || errText.includes("quota")) {
+      throw new Error("Free tier quota issue. Please link billing in Google Cloud Console.");
     }
     throw new Error(errText || `API error ${res.status}`);
   }
+
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  if (!text) throw new Error("Empty response from Gemini");
-  return JSON.parse(text);
+  let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  // === ROBUST JSON EXTRACTION ===
+  text = text.trim();
+  
+  // Remove markdown code blocks if present
+  text = text.replace(/```json\s*/g, '').replace(/```\s*$/g, '');
+  
+  // Try to find JSON object with regex
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    text = jsonMatch[0];
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.error("Raw response:", text);
+    throw new Error("Gemini returned invalid JSON. Please try again.");
+  }
 }
 
 function showResult(r) {
@@ -804,15 +812,13 @@ function renderLog() {
   const totals = sumEntries(entries);
   const isCurrentPeriod = periodOffset === 0;
 
-  const navHtml = `
-    <div class="period-nav">
+  const navHtml = `<div class="period-nav">
       <button class="period-nav-btn" onclick="shiftPeriod(-1)">‹</button>
       <div class="period-nav-label">${label}</div>
       <button class="period-nav-btn" onclick="shiftPeriod(1)" ${isCurrentPeriod?'disabled':''}>›</button>
     </div>`;
 
-  const summaryHtml = `
-    <div class="log-summary-card">
+  const summaryHtml = `<div class="log-summary-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <div style="font-weight:700;font-size:.95rem">Total</div>
         <div style="font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--accent)">${Math.round(totals.kcal)} <span style="font-size:.8rem;color:var(--muted)">kcal</span></div>
@@ -830,7 +836,10 @@ function renderLog() {
   document.getElementById('log-summary').innerHTML = navHtml + summaryHtml;
 
   const entriesEl = document.getElementById('log-entries');
-  if (!entries.length) { entriesEl.innerHTML='<div class="log-empty"><div class="big">📋</div>No entries for this period</div>'; return; }
+  if (!entries.length) { 
+    entriesEl.innerHTML='<div class="log-empty"><div class="big">📋</div>No entries for this period</div>'; 
+    return; 
+  }
 
   if (currentPeriod === 'day') {
     entriesEl.innerHTML = [...entries].reverse().map(e=>renderEntryHTML(e,true)).join('');
@@ -1005,9 +1014,9 @@ function calculateCalories() {
   const activity = parseFloat(document.getElementById('c-activity').value);
   const goalAdj = parseFloat(document.getElementById('c-goal').value);
   if (!age || !height || !weight) { showToast('Please fill in all fields'); return; }
-  let bmr;
-  if (gender === 'male') { bmr = 10 * weight + 6.25 * height - 5 * age + 5; }
-  else { bmr = 10 * weight + 6.25 * height - 5 * age - 161; }
+  let bmr = gender === 'male' 
+    ? 10 * weight + 6.25 * height - 5 * age + 5 
+    : 10 * weight + 6.25 * height - 5 * age - 161;
   const tdee = Math.round(bmr * activity);
   const target = tdee + goalAdj;
   const protein = Math.round((target * 0.30) / 4);
@@ -1047,5 +1056,3 @@ init();
 </script>
 </body>
 </html>
-``` }
-.log
