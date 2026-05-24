@@ -345,7 +345,10 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
       <div class="settings-section-label">Gemini API Key <span class="free-badge">FREE</span></div>
       <div class="api-key-section">
         <input type="password" id="s-apikey" placeholder="AIza..." oninput="saveSettings()">
-        <div class="api-note">Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a><br>Sign in with Google → Create API Key → Copy &amp; paste here. No credit card needed.</div>
+        <div class="api-note">
+          Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a><br>
+          <strong>Important:</strong> After creating the key, go to Google Cloud Console → Billing → Link a billing account (no charges if under free tier).
+        </div>
       </div>
     </div>
     <div class="settings-card">
@@ -552,9 +555,12 @@ function renderHome() {
   document.getElementById('h-carbs').textContent = Math.round(totals.carbs) + 'g';
   document.getElementById('h-fat').textContent = Math.round(totals.fat) + 'g';
   document.getElementById('h-sugar').textContent = Math.round(totals.sugar) + 'g';
-  const recent = state.log.slice(-2).reverse();
+  const recent = state.log.slice(-3).reverse();
   const list = document.getElementById('recent-scans-list');
-  if (!recent.length) { list.innerHTML = '<div class="no-recent">No scans yet — tap Track Now!</div>'; return; }
+  if (!recent.length) { 
+    list.innerHTML = '<div class="no-recent">No scans yet — tap Track Now!</div>'; 
+    return; 
+  }
   list.innerHTML = recent.map(e => `
     <div class="recent-card">
       <div class="recent-emoji">${e.emoji||'🍽'}</div>
@@ -605,15 +611,23 @@ function handlePhoto(e) {
   };
   reader.readAsDataURL(file);
 }
+
 async function scanPhoto() {
   if (!checkApiKey()) return;
   const weight = document.getElementById('photo-weight').value;
   const unit = document.getElementById('photo-unit').value;
   setBtnLoading('scan-btn','scan-btn-text',true,'Scanning…');
-  try { showResult(await callGemini({type:'photo', weight: weight?`${weight} ${unit}`:null})); }
-  catch(e) { showToast('⚠️ '+e.message); }
-  finally { setBtnLoading('scan-btn','scan-btn-text',false,'Scan with AI'); }
+  try { 
+    showResult(await callGemini({type:'photo', weight: weight?`${weight} ${unit}`:null})); 
+  }
+  catch(e) { 
+    showToast('⚠️ ' + e.message); 
+  }
+  finally { 
+    setBtnLoading('scan-btn','scan-btn-text',false,'Scan with AI'); 
+  }
 }
+
 async function lookupManual() {
   const food = document.getElementById('food-name').value.trim();
   const weight = document.getElementById('food-weight').value;
@@ -621,15 +635,22 @@ async function lookupManual() {
   if (!food) { showToast('Enter a food name first'); return; }
   if (!checkApiKey()) return;
   setBtnLoading('lookup-btn','lookup-btn-text',true,'Estimating…');
-  try { showResult(await callGemini({type:'manual', food, amount: weight?`${weight} ${unit}`:'1 serving'})); }
-  catch(e) { showToast('⚠️ '+e.message); }
-  finally { setBtnLoading('lookup-btn','lookup-btn-text',false,'Estimate Calories'); }
+  try { 
+    showResult(await callGemini({type:'manual', food, amount: weight?`${weight} ${unit}`:'1 serving'})); 
+  }
+  catch(e) { 
+    showToast('⚠️ ' + e.message); 
+  }
+  finally { 
+    setBtnLoading('lookup-btn','lookup-btn-text',false,'Estimate Calories'); 
+  }
 }
 
-// GEMINI API — responseSchema guarantees valid JSON, no parse errors ever
+// Improved Gemini API call with better error handling
 async function callGemini({type, food, amount, weight}) {
   const apiKey = state.settings.apiKey;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  // Using gemini-1.5-flash which often has better free tier availability
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   const prompt = type === 'photo'
     ? `You are a nutritional analyst. Identify all food items in this image and estimate their combined nutritional values. ${weight ? 'The total food weighs ' + weight + '.' : 'Estimate the portion size from the image.'} If multiple items are visible give combined totals. Be as accurate as possible.`
@@ -678,11 +699,23 @@ async function callGemini({type, food, amount, weight}) {
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `API error ${res.status}`);
+    let errText = '';
+    try {
+      const err = await res.json();
+      errText = err.error?.message || '';
+    } catch(e) {}
+
+    if (errText.includes("limit: 0") || errText.includes("quota") || errText.includes("billing")) {
+      throw new Error("Free tier quota not active. Please link a billing account in Google Cloud Console → Billing.");
+    }
+    if (errText.includes("API key")) {
+      throw new Error("Invalid API key. Check your key in Settings.");
+    }
+    throw new Error(errText || `API error ${res.status}`);
   }
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!text) throw new Error("Empty response from Gemini");
   return JSON.parse(text);
 }
 
@@ -701,6 +734,7 @@ function showResult(r) {
   document.getElementById('result-card').classList.add('show');
   document.getElementById('result-card').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
+
 function addToLog() {
   if (!pendingResult) return;
   state.log.push({
@@ -944,7 +978,10 @@ function confirmClearAll() {
 }
 
 function checkApiKey() {
-  if (!state.settings.apiKey) { showToast('⚙️ Add your free Gemini API key in Settings'); return false; }
+  if (!state.settings.apiKey) { 
+    showToast('⚙️ Add your Gemini API key in Settings'); 
+    return false; 
+  }
   return true;
 }
 function setBtnLoading(btnId, textId, loading, text) {
@@ -958,7 +995,7 @@ function showToast(msg) {
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove('show'), 2400);
+  toastTimer=setTimeout(()=>t.classList.remove('show'), 3000);
 }
 
 function calculateCalories() {
