@@ -345,7 +345,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
       <div class="settings-section-label">Gemini API Key <span class="free-badge">FREE</span></div>
       <div class="api-key-section">
         <input type="password" id="s-apikey" placeholder="AIza..." oninput="saveSettings()">
-        <div class="api-note">Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a><br>Sign in with Google → Create API Key → Copy &amp; paste here.</div>
+        <div class="api-note">Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a><br>Sign in with Google → Create API Key → Copy &amp; paste here. No credit card needed.</div>
       </div>
     </div>
     <div class="settings-card">
@@ -625,15 +625,15 @@ async function lookupManual() {
   finally { setBtnLoading('lookup-btn','lookup-btn-text',false,'Estimate Calories'); }
 }
 
-// UPDATED GEMINI FUNCTION - Using stable model
+// FIXED CALLGEMINI FUNCTION
 async function callGemini({type, food, amount, weight}) {
   const apiKey = state.settings.apiKey.trim();
   if (!apiKey) {
     showToast('⚙️ Add your Gemini API key in Settings');
-    throw new Error("No API key");
+    return;
   }
 
-  const model = "gemini-1.5-flash";  // Updated to current stable model
+  const model = "gemini-1.5-flash";   // ← Updated to working model
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const prompt = type === 'photo'
@@ -727,6 +727,7 @@ function discardResult() {
   pendingResult=null; pendingImageBase64=null;
   document.getElementById('result-card').classList.remove('show');
   document.getElementById('preview-img').style.display='none';
+  document.getElementById('preview-img').src='';
   document.getElementById('photo-drop').classList.remove('has-image');
   document.getElementById('scan-btn').disabled=true;
   document.getElementById('photo-input').value='';
