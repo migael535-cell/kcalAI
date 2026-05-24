@@ -347,7 +347,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
         <input type="password" id="s-apikey" placeholder="AIza..." oninput="saveSettings()">
         <div class="api-note">
           Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a><br>
-          <strong>Important:</strong> After creating the key, go to Google Cloud Console → Billing → Link a billing account (no charges if under free tier).
+          <strong>Important:</strong> Link a billing account in Google Cloud Console for full free tier access.
         </div>
       </div>
     </div>
@@ -646,11 +646,10 @@ async function lookupManual() {
   }
 }
 
-// Improved Gemini API call with better error handling
+// Updated to use gemini-2.5-flash as requested
 async function callGemini({type, food, amount, weight}) {
   const apiKey = state.settings.apiKey;
-  // Using gemini-1.5-flash which often has better free tier availability
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
   const prompt = type === 'photo'
     ? `You are a nutritional analyst. Identify all food items in this image and estimate their combined nutritional values. ${weight ? 'The total food weighs ' + weight + '.' : 'Estimate the portion size from the image.'} If multiple items are visible give combined totals. Be as accurate as possible.`
@@ -1048,3 +1047,5 @@ init();
 </script>
 </body>
 </html>
+``` }
+.log
