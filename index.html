@@ -494,7 +494,8 @@ function init() {
   loadState();
   renderHome();
   applySettingsToUI();
-  document.getElementById('home-date').textContent = new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  document.getElementById('home-date').textContent =
+    new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
 }
 
 function loadState() {
@@ -625,16 +626,10 @@ async function lookupManual() {
   finally { setBtnLoading('lookup-btn','lookup-btn-text',false,'Estimate Calories'); }
 }
 
-// FIXED CALLGEMINI FUNCTION
+// GEMINI API — responseSchema guarantees valid JSON, no parse errors ever
 async function callGemini({type, food, amount, weight}) {
-  const apiKey = state.settings.apiKey.trim();
-  if (!apiKey) {
-    showToast('⚙️ Add your Gemini API key in Settings');
-    return;
-  }
-
-  const model = "gemini-1.5-flash";   // ← Updated to working model
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const apiKey = state.settings.apiKey;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
   const prompt = type === 'photo'
     ? `You are a nutritional analyst. Identify all food items in this image and estimate their combined nutritional values. ${weight ? 'The total food weighs ' + weight + '.' : 'Estimate the portion size from the image.'} If multiple items are visible give combined totals. Be as accurate as possible.`
@@ -684,13 +679,7 @@ async function callGemini({type, food, amount, weight}) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    const msg = err.error?.message || `API error ${res.status}`;
-    if (msg.includes("quota") || res.status === 429) {
-      showToast('❌ Quota exceeded. Wait 24h or create new API key.');
-    } else {
-      showToast('⚠️ ' + msg);
-    }
-    throw new Error(msg);
+    throw new Error(err.error?.message || `API error ${res.status}`);
   }
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -969,7 +958,7 @@ function showToast(msg) {
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove('show'), 2800);
+  toastTimer=setTimeout(()=>t.classList.remove('show'), 2400);
 }
 
 function calculateCalories() {
