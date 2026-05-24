@@ -345,7 +345,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
       <div class="settings-section-label">Gemini API Key <span class="free-badge">FREE</span></div>
       <div class="api-key-section">
         <input type="password" id="s-apikey" placeholder="AIza..." oninput="saveSettings()">
-        <div class="api-note">Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a><br>Sign in with Google → Create API Key → Copy &amp; paste here. No credit card needed.</div>
+        <div class="api-note">Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a><br>Sign in with Google → Create API Key → Copy &amp; paste here.</div>
       </div>
     </div>
     <div class="settings-card">
@@ -494,8 +494,7 @@ function init() {
   loadState();
   renderHome();
   applySettingsToUI();
-  document.getElementById('home-date').textContent =
-    new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  document.getElementById('home-date').textContent = new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
 }
 
 function loadState() {
@@ -626,10 +625,16 @@ async function lookupManual() {
   finally { setBtnLoading('lookup-btn','lookup-btn-text',false,'Estimate Calories'); }
 }
 
-// GEMINI API — responseSchema guarantees valid JSON, no parse errors ever
+// UPDATED GEMINI FUNCTION - Using stable model
 async function callGemini({type, food, amount, weight}) {
-  const apiKey = state.settings.apiKey;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const apiKey = state.settings.apiKey.trim();
+  if (!apiKey) {
+    showToast('⚙️ Add your Gemini API key in Settings');
+    throw new Error("No API key");
+  }
+
+  const model = "gemini-1.5-flash";  // Updated to current stable model
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const prompt = type === 'photo'
     ? `You are a nutritional analyst. Identify all food items in this image and estimate their combined nutritional values. ${weight ? 'The total food weighs ' + weight + '.' : 'Estimate the portion size from the image.'} If multiple items are visible give combined totals. Be as accurate as possible.`
@@ -679,7 +684,13 @@ async function callGemini({type, food, amount, weight}) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `API error ${res.status}`);
+    const msg = err.error?.message || `API error ${res.status}`;
+    if (msg.includes("quota") || res.status === 429) {
+      showToast('❌ Quota exceeded. Wait 24h or create new API key.');
+    } else {
+      showToast('⚠️ ' + msg);
+    }
+    throw new Error(msg);
   }
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -716,7 +727,6 @@ function discardResult() {
   pendingResult=null; pendingImageBase64=null;
   document.getElementById('result-card').classList.remove('show');
   document.getElementById('preview-img').style.display='none';
-  document.getElementById('preview-img').src='';
   document.getElementById('photo-drop').classList.remove('has-image');
   document.getElementById('scan-btn').disabled=true;
   document.getElementById('photo-input').value='';
@@ -958,7 +968,7 @@ function showToast(msg) {
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove('show'), 2400);
+  toastTimer=setTimeout(()=>t.classList.remove('show'), 2800);
 }
 
 function calculateCalories() {
