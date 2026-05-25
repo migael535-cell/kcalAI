@@ -342,10 +342,10 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
       <div class="settings-row"><div><div class="settings-row-label">Sodium</div><div class="settings-row-sub">mg / day</div></div><input class="settings-input" type="number" id="s-sodium" value="2300" onchange="saveSettings()"></div>
     </div>
     <div class="settings-card">
-      <div class="settings-section-label">Kimi K2 API Key <span class="free-badge">NVIDIA</span></div>
+      <div class="settings-section-label">Groq API Key <span class="free-badge">FREE</span></div>
       <div class="api-key-section">
-        <input type="password" id="s-apikey" placeholder="nvapi-..." oninput="saveSettings()">
-        <div class="api-note">Get your key at <a href="https://integrate.api.nvidia.com" target="_blank">integrate.api.nvidia.com</a><br>Sign in → Get API Key → Copy &amp; paste here. Stored only on your device.</div>
+        <input type="password" id="s-apikey" placeholder="gsk_..." oninput="saveSettings()">
+        <div class="api-note">Get your free key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a><br>Sign in with Google → Create API Key → Copy &amp; paste here. Completely free, no credit card needed.</div>
       </div>
     </div>
     <div class="settings-card">
@@ -436,217 +436,187 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 <script>
 let state = {
   log: [],
-  settings: { kcal: 2000, protein: 150, carbs: 250, fat: 70, sugar: 50, fiber: 30, sodium: 2300, apiKey: '' }
+  settings: { kcal:2000, protein:150, carbs:250, fat:70, sugar:50, fiber:30, sodium:2300, apiKey:'' }
 };
-let pendingResult = null;
-let pendingImageBase64 = null;
-let pendingMimeType = 'image/jpeg';
-let editingId = null;
-let currentPeriod = 'day';
-let periodOffset = 0;
-let drillDownDate = null;
-let confirmCallback = null;
+let pendingResult=null, pendingImageBase64=null, pendingMimeType='image/jpeg';
+let editingId=null, currentPeriod='day', periodOffset=0, drillDownDate=null, confirmCallback=null;
 
 function init() {
   loadState(); renderHome(); applySettingsToUI();
   document.getElementById('home-date').textContent =
-    new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 }
 function loadState() {
   try {
-    const log = localStorage.getItem('kcalai_log');
-    if (log) state.log = JSON.parse(log);
-    const s = localStorage.getItem('kcalai_settings');
-    if (s) state.settings = { ...state.settings, ...JSON.parse(s) };
+    const log=localStorage.getItem('kcalai_log'); if(log) state.log=JSON.parse(log);
+    const s=localStorage.getItem('kcalai_settings'); if(s) state.settings={...state.settings,...JSON.parse(s)};
   } catch(e) {}
 }
-function saveLog() { localStorage.setItem('kcalai_log', JSON.stringify(state.log)); }
+function saveLog() { localStorage.setItem('kcalai_log',JSON.stringify(state.log)); }
 function saveSettings() {
-  state.settings.kcal = parseInt(document.getElementById('s-kcal').value)||2000;
-  state.settings.protein = parseInt(document.getElementById('s-protein').value)||150;
-  state.settings.carbs = parseInt(document.getElementById('s-carbs').value)||250;
-  state.settings.fat = parseInt(document.getElementById('s-fat').value)||70;
-  state.settings.sugar = parseInt(document.getElementById('s-sugar').value)||50;
-  state.settings.fiber = parseInt(document.getElementById('s-fiber').value)||30;
-  state.settings.sodium = parseInt(document.getElementById('s-sodium').value)||2300;
-  state.settings.apiKey = document.getElementById('s-apikey').value.trim();
-  localStorage.setItem('kcalai_settings', JSON.stringify(state.settings));
+  state.settings.kcal=parseInt(document.getElementById('s-kcal').value)||2000;
+  state.settings.protein=parseInt(document.getElementById('s-protein').value)||150;
+  state.settings.carbs=parseInt(document.getElementById('s-carbs').value)||250;
+  state.settings.fat=parseInt(document.getElementById('s-fat').value)||70;
+  state.settings.sugar=parseInt(document.getElementById('s-sugar').value)||50;
+  state.settings.fiber=parseInt(document.getElementById('s-fiber').value)||30;
+  state.settings.sodium=parseInt(document.getElementById('s-sodium').value)||2300;
+  state.settings.apiKey=document.getElementById('s-apikey').value.trim();
+  localStorage.setItem('kcalai_settings',JSON.stringify(state.settings));
   renderHome();
 }
 function applySettingsToUI() {
-  document.getElementById('s-kcal').value = state.settings.kcal;
-  document.getElementById('s-protein').value = state.settings.protein;
-  document.getElementById('s-carbs').value = state.settings.carbs;
-  document.getElementById('s-fat').value = state.settings.fat;
-  document.getElementById('s-sugar').value = state.settings.sugar;
-  document.getElementById('s-fiber').value = state.settings.fiber;
-  document.getElementById('s-sodium').value = state.settings.sodium;
-  document.getElementById('s-apikey').value = state.settings.apiKey;
+  document.getElementById('s-kcal').value=state.settings.kcal;
+  document.getElementById('s-protein').value=state.settings.protein;
+  document.getElementById('s-carbs').value=state.settings.carbs;
+  document.getElementById('s-fat').value=state.settings.fat;
+  document.getElementById('s-sugar').value=state.settings.sugar;
+  document.getElementById('s-fiber').value=state.settings.fiber;
+  document.getElementById('s-sodium').value=state.settings.sodium;
+  document.getElementById('s-apikey').value=state.settings.apiKey;
 }
-function goTo(screenId) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(screenId).classList.add('active');
-  if (screenId === 'home') renderHome();
-  if (screenId === 'log') { periodOffset = 0; drillDownDate = null; renderLog(); }
+function goTo(id) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id==='home') renderHome();
+  if(id==='log') { periodOffset=0; drillDownDate=null; renderLog(); }
 }
 function todayEntries() {
-  const today = new Date().toDateString();
-  return state.log.filter(e => new Date(e.timestamp).toDateString() === today);
+  const today=new Date().toDateString();
+  return state.log.filter(e=>new Date(e.timestamp).toDateString()===today);
 }
 function renderHome() {
-  const entries = todayEntries();
-  const totals = sumEntries(entries);
-  const pct = Math.min(totals.kcal / state.settings.kcal, 1);
-  document.getElementById('home-ring').style.strokeDashoffset = 264 - pct * 264;
-  document.getElementById('home-ring').style.stroke = totals.kcal > state.settings.kcal ? 'var(--danger)' : 'var(--accent)';
-  document.getElementById('home-kcal').textContent = Math.round(totals.kcal);
-  document.getElementById('h-protein').textContent = Math.round(totals.protein)+'g';
-  document.getElementById('h-carbs').textContent = Math.round(totals.carbs)+'g';
-  document.getElementById('h-fat').textContent = Math.round(totals.fat)+'g';
-  document.getElementById('h-sugar').textContent = Math.round(totals.sugar)+'g';
-  const recent = state.log.slice(-2).reverse();
-  const list = document.getElementById('recent-scans-list');
-  if (!recent.length) { list.innerHTML = '<div class="no-recent">No scans yet — tap Track Now!</div>'; return; }
-  list.innerHTML = recent.map(e => `
-    <div class="recent-card">
-      <div class="recent-emoji">${e.emoji||'🍽'}</div>
-      <div class="recent-info"><div class="recent-name">${e.food}</div><div class="recent-sub">${e.amount} · ${formatTime(e.timestamp)}</div></div>
-      <div class="recent-kcal">${Math.round(e.kcal)}</div>
-      <button class="add-quick-btn" onclick="quickAdd(${e.id})">+ Add</button>
-    </div>`).join('');
+  const totals=sumEntries(todayEntries());
+  const pct=Math.min(totals.kcal/state.settings.kcal,1);
+  document.getElementById('home-ring').style.strokeDashoffset=264-pct*264;
+  document.getElementById('home-ring').style.stroke=totals.kcal>state.settings.kcal?'var(--danger)':'var(--accent)';
+  document.getElementById('home-kcal').textContent=Math.round(totals.kcal);
+  document.getElementById('h-protein').textContent=Math.round(totals.protein)+'g';
+  document.getElementById('h-carbs').textContent=Math.round(totals.carbs)+'g';
+  document.getElementById('h-fat').textContent=Math.round(totals.fat)+'g';
+  document.getElementById('h-sugar').textContent=Math.round(totals.sugar)+'g';
+  const recent=state.log.slice(-2).reverse();
+  const list=document.getElementById('recent-scans-list');
+  if(!recent.length){list.innerHTML='<div class="no-recent">No scans yet — tap Track Now!</div>';return;}
+  list.innerHTML=recent.map(e=>`<div class="recent-card"><div class="recent-emoji">${e.emoji||'🍽'}</div><div class="recent-info"><div class="recent-name">${e.food}</div><div class="recent-sub">${e.amount} · ${formatTime(e.timestamp)}</div></div><div class="recent-kcal">${Math.round(e.kcal)}</div><button class="add-quick-btn" onclick="quickAdd(${e.id})">+ Add</button></div>`).join('');
 }
 function quickAdd(id) {
-  const o = state.log.find(e => e.id===id); if (!o) return;
-  state.log.push({...o, id:Date.now(), timestamp:Date.now()});
+  const o=state.log.find(e=>e.id===id); if(!o) return;
+  state.log.push({...o,id:Date.now(),timestamp:Date.now()});
   saveLog(); renderHome(); showToast('✅ Added to log!');
 }
 function sumEntries(entries) {
-  return entries.reduce((a,e) => ({
-    kcal:a.kcal+(e.kcal||0), protein:a.protein+(e.protein||0), carbs:a.carbs+(e.carbs||0),
-    fat:a.fat+(e.fat||0), sugar:a.sugar+(e.sugar||0), fiber:a.fiber+(e.fiber||0), sodium:a.sodium+(e.sodium||0)
-  }), {kcal:0,protein:0,carbs:0,fat:0,sugar:0,fiber:0,sodium:0});
+  return entries.reduce((a,e)=>({kcal:a.kcal+(e.kcal||0),protein:a.protein+(e.protein||0),carbs:a.carbs+(e.carbs||0),fat:a.fat+(e.fat||0),sugar:a.sugar+(e.sugar||0),fiber:a.fiber+(e.fiber||0),sodium:a.sodium+(e.sodium||0)}),{kcal:0,protein:0,carbs:0,fat:0,sugar:0,fiber:0,sodium:0});
 }
-function formatTime(ts) { return new Date(ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
-function formatDate(ts) { return new Date(ts).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
-function groupByDay(entries) {
-  const g={};
-  entries.forEach(e => { const k=new Date(e.timestamp).toDateString(); if(!g[k])g[k]=[]; g[k].push(e); });
-  return g;
-}
+function formatTime(ts){return new Date(ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});}
+function formatDate(ts){return new Date(ts).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});}
+function groupByDay(entries){const g={};entries.forEach(e=>{const k=new Date(e.timestamp).toDateString();if(!g[k])g[k]=[];g[k].push(e);});return g;}
 function selectTrackMode(mode) {
-  document.getElementById('opt-photo').classList.toggle('selected', mode==='photo');
-  document.getElementById('opt-manual').classList.toggle('selected', mode==='manual');
-  document.getElementById('photo-panel').classList.toggle('active', mode==='photo');
-  document.getElementById('manual-panel').classList.toggle('active', mode==='manual');
+  document.getElementById('opt-photo').classList.toggle('selected',mode==='photo');
+  document.getElementById('opt-manual').classList.toggle('selected',mode==='manual');
+  document.getElementById('photo-panel').classList.toggle('active',mode==='photo');
+  document.getElementById('manual-panel').classList.toggle('active',mode==='manual');
 }
 function handlePhoto(e) {
-  const file = e.target.files[0]; if (!file) return;
-  pendingMimeType = file.type||'image/jpeg';
-  const reader = new FileReader();
-  reader.onload = ev => {
-    pendingImageBase64 = ev.target.result.split(',')[1];
-    const img = document.getElementById('preview-img');
-    img.src = ev.target.result; img.style.display='block';
+  const file=e.target.files[0]; if(!file) return;
+  pendingMimeType=file.type||'image/jpeg';
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    pendingImageBase64=ev.target.result.split(',')[1];
+    const img=document.getElementById('preview-img');
+    img.src=ev.target.result; img.style.display='block';
     document.getElementById('photo-drop').classList.add('has-image');
-    document.getElementById('scan-btn').disabled = false;
+    document.getElementById('scan-btn').disabled=false;
   };
   reader.readAsDataURL(file);
 }
 async function scanPhoto() {
-  if (!checkApiKey()) return;
-  const weight = document.getElementById('photo-weight').value;
-  const unit = document.getElementById('photo-unit').value;
+  if(!checkApiKey()) return;
+  const weight=document.getElementById('photo-weight').value;
+  const unit=document.getElementById('photo-unit').value;
   setBtnLoading('scan-btn','scan-btn-text',true,'Scanning…');
-  try { showResult(await callKimi({type:'photo', weight:weight?`${weight} ${unit}`:null})); }
-  catch(e) { showToast('⚠️ '+e.message); }
-  finally { setBtnLoading('scan-btn','scan-btn-text',false,'Scan with AI'); }
+  try{showResult(await callGroq({type:'photo',weight:weight?`${weight} ${unit}`:null}));}
+  catch(e){showToast('⚠️ '+e.message);}
+  finally{setBtnLoading('scan-btn','scan-btn-text',false,'Scan with AI');}
 }
 async function lookupManual() {
-  const food = document.getElementById('food-name').value.trim();
-  const weight = document.getElementById('food-weight').value;
-  const unit = document.getElementById('food-unit').value;
-  if (!food) { showToast('Enter a food name first'); return; }
-  if (!checkApiKey()) return;
+  const food=document.getElementById('food-name').value.trim();
+  const weight=document.getElementById('food-weight').value;
+  const unit=document.getElementById('food-unit').value;
+  if(!food){showToast('Enter a food name first');return;}
+  if(!checkApiKey()) return;
   setBtnLoading('lookup-btn','lookup-btn-text',true,'Estimating…');
-  try { showResult(await callKimi({type:'manual', food, amount:weight?`${weight} ${unit}`:'1 serving'})); }
-  catch(e) { showToast('⚠️ '+e.message); }
-  finally { setBtnLoading('lookup-btn','lookup-btn-text',false,'Estimate Calories'); }
+  try{showResult(await callGroq({type:'manual',food,amount:weight?`${weight} ${unit}`:'1 serving'}));}
+  catch(e){showToast('⚠️ '+e.message);}
+  finally{setBtnLoading('lookup-btn','lookup-btn-text',false,'Estimate Calories');}
 }
 
-async function callKimi({type, food, amount, weight}) {
-  const apiKey = state.settings.apiKey;
-  const url = 'https://integrate.api.nvidia.com/v1/chat/completions';
-  const systemPrompt = `You are a precise nutritional analyst. Respond with ONLY a valid JSON object, nothing else. No thinking tags, no markdown, no explanation.
-Format: {"food":"name","amount":"amount","emoji":"emoji","note":"short note","kcal":number,"protein":number,"carbs":number,"fat":number,"sugar":number,"fiber":number,"sodium":number}
-All numbers are plain numbers. sodium is milligrams. Start with { and end with }.`;
+// GROQ API — uses JSON mode so no parse errors ever
+async function callGroq({type,food,amount,weight}) {
+  const apiKey=state.settings.apiKey;
+  const url='https://api.groq.com/openai/v1/chat/completions';
 
-  let userContent;
-  if (type==='photo') {
-    userContent = [
-      { type:'image_url', image_url:{ url:`data:${pendingMimeType};base64,${pendingImageBase64}` } },
-      { type:'text', text:`Identify all food in this image and estimate combined nutritional values. ${weight?'Food weighs '+weight+'.':'Estimate portion from image.'} Give combined totals if multiple items. Respond with ONLY the JSON object.` }
+  const systemPrompt=`You are a precise nutritional analyst. You must respond with a valid JSON object containing exactly these fields:
+food (string), amount (string), emoji (string - one food emoji), note (string - one short sentence), kcal (number), protein (number), carbs (number), fat (number), sugar (number), fiber (number), sodium (number).
+All numeric values are plain numbers. sodium is in milligrams. Be as accurate as possible using standard nutritional databases.`;
+
+  let messages;
+  if(type==='photo') {
+    messages=[
+      {role:'system',content:systemPrompt},
+      {role:'user',content:[
+        {type:'image_url',image_url:{url:`data:${pendingMimeType};base64,${pendingImageBase64}`}},
+        {type:'text',text:`Identify all food items in this image and estimate their combined nutritional values. ${weight?'The total food weighs '+weight+'.':'Estimate the portion size from the image.'} If multiple items are visible give combined totals.`}
+      ]}
     ];
   } else {
-    userContent = `Estimate nutritional values for: ${food}, amount: ${amount}. Respond with ONLY the JSON object.`;
+    messages=[
+      {role:'system',content:systemPrompt},
+      {role:'user',content:`Estimate the complete nutritional values for: ${food}, amount: ${amount}.`}
+    ];
   }
 
-  const res = await fetch(url, {
+  const res=await fetch(url,{
     method:'POST',
-    headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model:'moonshotai/kimi-k2',
-      messages:[
-        { role:'system', content:systemPrompt },
-        { role:'user', content:userContent }
-      ],
-      max_tokens:512, temperature:0.1, top_p:0.9, stream:false
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
+    body:JSON.stringify({
+      model:'meta-llama/llama-4-scout-17b-16e-instruct',
+      messages,
+      temperature:0.1,
+      max_completion_tokens:512,
+      top_p:1,
+      stream:false,
+      response_format:{type:'json_object'}
     })
   });
-  if (!res.ok) {
-    const err = await res.json().catch(()=>({}));
-    throw new Error(err.message||err.error?.message||`API error ${res.status}`);
+
+  if(!res.ok) {
+    const err=await res.json().catch(()=>({}));
+    throw new Error(err.error?.message||`API error ${res.status}`);
   }
-  const data = await res.json();
-  let text = data.choices?.[0]?.message?.content||'';
-  text = text.replace(/<thinking>[\s\S]*?<\/thinking>/gi,'').trim();
-  text = text.replace(/```json|```/g,'').trim();
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start===-1||end===-1) throw new Error('No valid response from AI');
-  text = text.slice(start,end+1).replace(/[\x00-\x1F\x7F]/g,' ');
-  try { return JSON.parse(text); }
-  catch(e) {
-    text = text.replace(/"note":"([^"]*)"/, (m,p1)=>`"note":"${p1.replace(/"/g,"'")}"`)
-               .replace(/"food":"([^"]*)"/, (m,p1)=>`"food":"${p1.replace(/"/g,"'")}"`)
-               .replace(/"amount":"([^"]*)"/, (m,p1)=>`"amount":"${p1.replace(/"/g,"'")}"`)
-               .replace(/"emoji":"([^"]*)"/, (m,p1)=>`"emoji":"${p1.replace(/"/g,"'")}"`)
-    return JSON.parse(text);
-  }
+  const data=await res.json();
+  const text=data.choices?.[0]?.message?.content||'';
+  return JSON.parse(text);
 }
 
 function showResult(r) {
-  pendingResult = r;
-  document.getElementById('r-name').textContent = (r.emoji||'🍽')+' '+r.food;
-  document.getElementById('r-amount').textContent = r.amount;
-  document.getElementById('r-kcal').textContent = Math.round(r.kcal);
-  document.getElementById('r-protein').textContent = Math.round(r.protein)+'g';
-  document.getElementById('r-carbs').textContent = Math.round(r.carbs)+'g';
-  document.getElementById('r-fat').textContent = Math.round(r.fat)+'g';
-  document.getElementById('r-sugar').textContent = Math.round(r.sugar||0)+'g';
-  document.getElementById('r-fiber').textContent = Math.round(r.fiber||0)+'g';
-  document.getElementById('r-sodium').textContent = Math.round(r.sodium||0)+'mg';
-  document.getElementById('r-note').textContent = r.note||'';
+  pendingResult=r;
+  document.getElementById('r-name').textContent=(r.emoji||'🍽')+' '+r.food;
+  document.getElementById('r-amount').textContent=r.amount;
+  document.getElementById('r-kcal').textContent=Math.round(r.kcal);
+  document.getElementById('r-protein').textContent=Math.round(r.protein)+'g';
+  document.getElementById('r-carbs').textContent=Math.round(r.carbs)+'g';
+  document.getElementById('r-fat').textContent=Math.round(r.fat)+'g';
+  document.getElementById('r-sugar').textContent=Math.round(r.sugar||0)+'g';
+  document.getElementById('r-fiber').textContent=Math.round(r.fiber||0)+'g';
+  document.getElementById('r-sodium').textContent=Math.round(r.sodium||0)+'mg';
+  document.getElementById('r-note').textContent=r.note||'';
   document.getElementById('result-card').classList.add('show');
   document.getElementById('result-card').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function addToLog() {
-  if (!pendingResult) return;
-  state.log.push({
-    id:Date.now(), timestamp:Date.now(), food:pendingResult.food, amount:pendingResult.amount,
-    emoji:pendingResult.emoji||'🍽', kcal:pendingResult.kcal, protein:pendingResult.protein,
-    carbs:pendingResult.carbs, fat:pendingResult.fat, sugar:pendingResult.sugar||0,
-    fiber:pendingResult.fiber||0, sodium:pendingResult.sodium||0
-  });
+  if(!pendingResult) return;
+  state.log.push({id:Date.now(),timestamp:Date.now(),food:pendingResult.food,amount:pendingResult.amount,emoji:pendingResult.emoji||'🍽',kcal:pendingResult.kcal,protein:pendingResult.protein,carbs:pendingResult.carbs,fat:pendingResult.fat,sugar:pendingResult.sugar||0,fiber:pendingResult.fiber||0,sodium:pendingResult.sodium||0});
   saveLog(); discardResult(); showToast('✅ Added to log!');
   setTimeout(()=>goTo('home'),600);
 }
@@ -662,161 +632,92 @@ function discardResult() {
   document.getElementById('food-name').value='';
   document.getElementById('food-weight').value='';
 }
-function setPeriod(period, btn) {
+function setPeriod(period,btn) {
   currentPeriod=period; periodOffset=0; drillDownDate=null;
   document.querySelectorAll('.period-tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active'); renderLog();
 }
-function shiftPeriod(dir) { periodOffset+=dir; drillDownDate=null; renderLog(); }
-function getPeriodRange(period, offset) {
-  const now = new Date(); let start, end, label;
-  if (period==='day') {
-    const d=new Date(now); d.setDate(d.getDate()+offset);
+function shiftPeriod(dir){periodOffset+=dir;drillDownDate=null;renderLog();}
+function getPeriodRange(period,offset) {
+  const now=new Date(); let start,end,label;
+  if(period==='day'){
+    const d=new Date(now);d.setDate(d.getDate()+offset);
     start=new Date(d.getFullYear(),d.getMonth(),d.getDate());
-    end=new Date(start); end.setDate(end.getDate()+1);
+    end=new Date(start);end.setDate(end.getDate()+1);
     label=offset===0?'Today':offset===-1?'Yesterday':formatDate(start.getTime());
-  } else if (period==='week') {
-    const d=new Date(now); const day=d.getDay(); const diff=(day===0?-6:1-day);
+  } else if(period==='week'){
+    const d=new Date(now);const day=d.getDay();const diff=(day===0?-6:1-day);
     d.setDate(d.getDate()+diff+offset*7);
     start=new Date(d.getFullYear(),d.getMonth(),d.getDate());
-    end=new Date(start); end.setDate(end.getDate()+7);
+    end=new Date(start);end.setDate(end.getDate()+7);
     const es=start.toLocaleDateString('en-US',{month:'short',day:'numeric'});
     const ee=new Date(end-1).toLocaleDateString('en-US',{month:'short',day:'numeric'});
     label=offset===0?`This Week · ${es}–${ee}`:`${es} – ${ee}`;
-  } else if (period==='month') {
+  } else if(period==='month'){
     const d=new Date(now.getFullYear(),now.getMonth()+offset,1);
-    start=d; end=new Date(d.getFullYear(),d.getMonth()+1,1);
+    start=d;end=new Date(d.getFullYear(),d.getMonth()+1,1);
     label=d.toLocaleDateString('en-US',{month:'long',year:'numeric'});
   } else {
     const yr=now.getFullYear()+offset;
-    start=new Date(yr,0,1); end=new Date(yr+1,0,1); label=String(yr);
+    start=new Date(yr,0,1);end=new Date(yr+1,0,1);label=String(yr);
   }
-  return {start,end,label};
+  return{start,end,label};
 }
-function getEntriesForRange(start,end) {
-  return state.log.filter(e=>{const t=e.timestamp;return t>=start.getTime()&&t<end.getTime();});
-}
+function getEntriesForRange(start,end){return state.log.filter(e=>{const t=e.timestamp;return t>=start.getTime()&&t<end.getTime();});}
 function renderLog() {
-  if (drillDownDate) { renderDayDetail(drillDownDate); return; }
-  const {start,end,label}=getPeriodRange(currentPeriod,periodOffset);
+  if(drillDownDate){renderDayDetail(drillDownDate);return;}
+  const{start,end,label}=getPeriodRange(currentPeriod,periodOffset);
   const entries=getEntriesForRange(start,end);
   const totals=sumEntries(entries);
-  const isCurrentPeriod=periodOffset===0;
-  const navHtml=`<div class="period-nav"><button class="period-nav-btn" onclick="shiftPeriod(-1)">‹</button><div class="period-nav-label">${label}</div><button class="period-nav-btn" onclick="shiftPeriod(1)" ${isCurrentPeriod?'disabled':''}>›</button></div>`;
-  const summaryHtml=`<div class="log-summary-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div style="font-weight:700;font-size:.95rem">Total</div><div style="font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--accent)">${Math.round(totals.kcal)} <span style="font-size:.8rem;color:var(--muted)">kcal</span></div></div><div class="log-summary-grid"><div class="lsg-item"><div class="lsg-val" style="color:var(--accent3)">${Math.round(totals.protein)}g</div><div class="lsg-lbl">Protein</div></div><div class="lsg-item"><div class="lsg-val" style="color:var(--accent2)">${Math.round(totals.carbs)}g</div><div class="lsg-lbl">Carbs</div></div><div class="lsg-item"><div class="lsg-val" style="color:#d460f0">${Math.round(totals.fat)}g</div><div class="lsg-lbl">Fat</div></div><div class="lsg-item"><div class="lsg-val" style="color:var(--danger)">${Math.round(totals.sugar)}g</div><div class="lsg-lbl">Sugar</div></div><div class="lsg-item"><div class="lsg-val">${Math.round(totals.fiber)}g</div><div class="lsg-lbl">Fiber</div></div><div class="lsg-item"><div class="lsg-val">${Math.round(totals.sodium)}mg</div><div class="lsg-lbl">Sodium</div></div></div></div>`;
-  document.getElementById('log-summary').innerHTML=navHtml+summaryHtml;
-  const entriesEl=document.getElementById('log-entries');
-  if (!entries.length) { entriesEl.innerHTML='<div class="log-empty"><div class="big">📋</div>No entries for this period</div>'; return; }
-  if (currentPeriod==='day') { entriesEl.innerHTML=[...entries].reverse().map(e=>renderEntryHTML(e,true)).join(''); return; }
+  const isCurrent=periodOffset===0;
+  const navHtml=`<div class="period-nav"><button class="period-nav-btn" onclick="shiftPeriod(-1)">‹</button><div class="period-nav-label">${label}</div><button class="period-nav-btn" onclick="shiftPeriod(1)" ${isCurrent?'disabled':''}>›</button></div>`;
+  const sumHtml=`<div class="log-summary-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div style="font-weight:700;font-size:.95rem">Total</div><div style="font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--accent)">${Math.round(totals.kcal)} <span style="font-size:.8rem;color:var(--muted)">kcal</span></div></div><div class="log-summary-grid"><div class="lsg-item"><div class="lsg-val" style="color:var(--accent3)">${Math.round(totals.protein)}g</div><div class="lsg-lbl">Protein</div></div><div class="lsg-item"><div class="lsg-val" style="color:var(--accent2)">${Math.round(totals.carbs)}g</div><div class="lsg-lbl">Carbs</div></div><div class="lsg-item"><div class="lsg-val" style="color:#d460f0">${Math.round(totals.fat)}g</div><div class="lsg-lbl">Fat</div></div><div class="lsg-item"><div class="lsg-val" style="color:var(--danger)">${Math.round(totals.sugar)}g</div><div class="lsg-lbl">Sugar</div></div><div class="lsg-item"><div class="lsg-val">${Math.round(totals.fiber)}g</div><div class="lsg-lbl">Fiber</div></div><div class="lsg-item"><div class="lsg-val">${Math.round(totals.sodium)}mg</div><div class="lsg-lbl">Sodium</div></div></div></div>`;
+  document.getElementById('log-summary').innerHTML=navHtml+sumHtml;
+  const el=document.getElementById('log-entries');
+  if(!entries.length){el.innerHTML='<div class="log-empty"><div class="big">📋</div>No entries for this period</div>';return;}
+  if(currentPeriod==='day'){el.innerHTML=[...entries].reverse().map(e=>renderEntryHTML(e,true)).join('');return;}
   const groups=groupByDay(entries);
   const dayKeys=Object.keys(groups).sort((a,b)=>new Date(b)-new Date(a));
   const numDays=dayKeys.length;
   let avgHtml='';
-  if (numDays>1) {
+  if(numDays>1){
     const avg={kcal:totals.kcal/numDays,protein:totals.protein/numDays,carbs:totals.carbs/numDays,fat:totals.fat/numDays,sugar:totals.sugar/numDays};
     avgHtml=`<div class="avg-card"><div class="avg-card-title">Daily Average · ${numDays} days tracked</div><div class="avg-grid"><div class="avg-item"><div class="avg-val" style="color:var(--accent)">${Math.round(avg.kcal)}</div><div class="avg-lbl">kcal</div></div><div class="avg-item"><div class="avg-val" style="color:var(--accent3)">${Math.round(avg.protein)}g</div><div class="avg-lbl">Protein</div></div><div class="avg-item"><div class="avg-val" style="color:var(--accent2)">${Math.round(avg.carbs)}g</div><div class="avg-lbl">Carbs</div></div><div class="avg-item"><div class="avg-val" style="color:#d460f0">${Math.round(avg.fat)}g</div><div class="avg-lbl">Fat</div></div><div class="avg-item"><div class="avg-val" style="color:var(--danger)">${Math.round(avg.sugar)}g</div><div class="avg-lbl">Sugar</div></div><div class="avg-item"><div class="avg-val">${numDays}</div><div class="avg-lbl">Days</div></div></div></div>`;
   }
-  let dayCardsHtml='<div class="section-title" style="margin-bottom:10px">Days</div>';
+  let cards='<div class="section-title" style="margin-bottom:10px">Days</div>';
   dayKeys.forEach(dateStr=>{
     const dt=sumEntries(groups[dateStr]);
-    const isToday=dateStr===new Date().toDateString();
-    const lbl=isToday?'Today':formatDate(new Date(dateStr).getTime());
-    dayCardsHtml+=`<div class="day-card" onclick="openDayDetail('${dateStr}')"><div><div class="day-card-date">${lbl}</div><div class="day-card-macros">P:${Math.round(dt.protein)}g · C:${Math.round(dt.carbs)}g · F:${Math.round(dt.fat)}g · Sugar:${Math.round(dt.sugar)}g</div></div><div class="day-card-right"><div class="day-card-kcal">${Math.round(dt.kcal)}</div><div class="day-card-arrow">›</div></div></div>`;
+    const lbl=dateStr===new Date().toDateString()?'Today':formatDate(new Date(dateStr).getTime());
+    cards+=`<div class="day-card" onclick="openDayDetail('${dateStr}')"><div><div class="day-card-date">${lbl}</div><div class="day-card-macros">P:${Math.round(dt.protein)}g · C:${Math.round(dt.carbs)}g · F:${Math.round(dt.fat)}g · Sugar:${Math.round(dt.sugar)}g</div></div><div class="day-card-right"><div class="day-card-kcal">${Math.round(dt.kcal)}</div><div class="day-card-arrow">›</div></div></div>`;
   });
-  entriesEl.innerHTML=avgHtml+dayCardsHtml;
+  el.innerHTML=avgHtml+cards;
 }
-function openDayDetail(dateStr) { drillDownDate=dateStr; renderDayDetail(dateStr); }
+function openDayDetail(dateStr){drillDownDate=dateStr;renderDayDetail(dateStr);}
 function renderDayDetail(dateStr) {
-  const isToday=dateStr===new Date().toDateString();
-  const lbl=isToday?'Today':formatDate(new Date(dateStr).getTime());
+  const lbl=dateStr===new Date().toDateString()?'Today':formatDate(new Date(dateStr).getTime());
   const entries=state.log.filter(e=>new Date(e.timestamp).toDateString()===dateStr);
   const totals=sumEntries(entries);
   document.getElementById('log-summary').innerHTML=`<div class="day-detail-header"><button class="day-back-btn" onclick="closeDayDetail()">← Back</button><div style="font-weight:700;font-size:1rem">${lbl}</div></div><div class="log-summary-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div style="font-weight:700;font-size:.95rem">Day Total</div><div style="font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--accent)">${Math.round(totals.kcal)} <span style="font-size:.8rem;color:var(--muted)">kcal</span></div></div><div class="log-summary-grid"><div class="lsg-item"><div class="lsg-val" style="color:var(--accent3)">${Math.round(totals.protein)}g</div><div class="lsg-lbl">Protein</div></div><div class="lsg-item"><div class="lsg-val" style="color:var(--accent2)">${Math.round(totals.carbs)}g</div><div class="lsg-lbl">Carbs</div></div><div class="lsg-item"><div class="lsg-val" style="color:#d460f0">${Math.round(totals.fat)}g</div><div class="lsg-lbl">Fat</div></div><div class="lsg-item"><div class="lsg-val" style="color:var(--danger)">${Math.round(totals.sugar)}g</div><div class="lsg-lbl">Sugar</div></div><div class="lsg-item"><div class="lsg-val">${Math.round(totals.fiber)}g</div><div class="lsg-lbl">Fiber</div></div><div class="lsg-item"><div class="lsg-val">${Math.round(totals.sodium)}mg</div><div class="lsg-lbl">Sodium</div></div></div></div>`;
-  const entriesEl=document.getElementById('log-entries');
-  if (!entries.length) { entriesEl.innerHTML='<div class="log-empty"><div class="big">🍽</div>Nothing logged this day</div>'; return; }
-  entriesEl.innerHTML=[...entries].reverse().map(e=>renderEntryHTML(e,true)).join('');
+  const el=document.getElementById('log-entries');
+  if(!entries.length){el.innerHTML='<div class="log-empty"><div class="big">🍽</div>Nothing logged this day</div>';return;}
+  el.innerHTML=[...entries].reverse().map(e=>renderEntryHTML(e,true)).join('');
 }
-function closeDayDetail() { drillDownDate=null; renderLog(); }
-function renderEntryHTML(e,editable) {
-  return `<div class="log-entry"><div class="log-emoji">${e.emoji||'🍽'}</div><div class="log-info"><div class="log-name">${e.food}</div><div class="log-sub">${e.amount} · ${formatTime(e.timestamp)} · P:${Math.round(e.protein)}g Sugar:${Math.round(e.sugar||0)}g</div></div><div class="log-kcal">${Math.round(e.kcal)}</div>${editable?`<button class="log-edit-btn" onclick="openEdit(${e.id})">Edit</button>`:''}<button class="log-delete-btn" onclick="confirmDelete(${e.id})">✕</button></div>`;
-}
-function showConfirm(title,msg,okLabel,okClass,cb) {
-  document.getElementById('confirm-title').textContent=title;
-  document.getElementById('confirm-msg').textContent=msg;
-  const btn=document.getElementById('confirm-ok-btn');
-  btn.textContent=okLabel; btn.className='confirm-ok '+okClass;
-  confirmCallback=cb;
-  document.getElementById('confirm-modal').classList.add('show');
-}
-function closeConfirm() { document.getElementById('confirm-modal').classList.remove('show'); confirmCallback=null; }
-function confirmOk() { if(confirmCallback)confirmCallback(); closeConfirm(); }
-function confirmDelete(id) {
-  const e=state.log.find(e=>e.id===id);
-  showConfirm('Delete Entry',`Delete "${e?e.food:'this entry'}"? This cannot be undone.`,'Delete','danger',()=>{
-    state.log=state.log.filter(e=>e.id!==id);
-    saveLog(); renderLog(); renderHome(); showToast('Deleted');
-  });
-}
-function openEdit(id) {
-  editingId=id;
-  const e=state.log.find(e=>e.id===id); if(!e)return;
-  document.getElementById('e-name').value=e.food;
-  document.getElementById('e-kcal').value=Math.round(e.kcal);
-  document.getElementById('e-protein').value=Math.round(e.protein);
-  document.getElementById('e-carbs').value=Math.round(e.carbs);
-  document.getElementById('e-fat').value=Math.round(e.fat);
-  document.getElementById('e-sugar').value=Math.round(e.sugar||0);
-  document.getElementById('e-fiber').value=Math.round(e.fiber||0);
-  document.getElementById('e-sodium').value=Math.round(e.sodium||0);
-  document.getElementById('edit-modal').classList.add('show');
-}
-function closeEditModal() { document.getElementById('edit-modal').classList.remove('show'); editingId=null; }
-function confirmSaveEdit() {
-  showConfirm('Save Changes','Are you sure you want to save these changes?','Save','accent',()=>{
-    if(!editingId)return;
-    const idx=state.log.findIndex(e=>e.id===editingId); if(idx===-1)return;
-    state.log[idx].food=document.getElementById('e-name').value;
-    state.log[idx].kcal=parseFloat(document.getElementById('e-kcal').value)||0;
-    state.log[idx].protein=parseFloat(document.getElementById('e-protein').value)||0;
-    state.log[idx].carbs=parseFloat(document.getElementById('e-carbs').value)||0;
-    state.log[idx].fat=parseFloat(document.getElementById('e-fat').value)||0;
-    state.log[idx].sugar=parseFloat(document.getElementById('e-sugar').value)||0;
-    state.log[idx].fiber=parseFloat(document.getElementById('e-fiber').value)||0;
-    state.log[idx].sodium=parseFloat(document.getElementById('e-sodium').value)||0;
-    saveLog(); closeEditModal(); renderLog(); renderHome();
-    showToast('✅ Entry updated!');
-  });
-}
-function confirmDeleteFromModal() {
-  const e=state.log.find(e=>e.id===editingId);
-  showConfirm('Delete Entry',`Delete "${e?e.food:'this entry'}"? This cannot be undone.`,'Delete','danger',()=>{
-    state.log=state.log.filter(e=>e.id!==editingId);
-    saveLog(); closeEditModal(); renderLog(); renderHome(); showToast('Deleted');
-  });
-}
-function confirmClearAll() {
-  showConfirm('Clear All Data','This will permanently delete your entire food log. This cannot be undone.','Delete All','danger',()=>{
-    state.log=[]; saveLog(); renderHome(); showToast('All data cleared');
-  });
-}
-function checkApiKey() {
-  if(!state.settings.apiKey){showToast('⚙️ Add your Kimi K2 API key in Settings');return false;}
-  return true;
-}
-function setBtnLoading(btnId,textId,loading,text) {
-  const btn=document.getElementById(btnId);
-  document.getElementById(textId).innerHTML=loading?`<div class="spinner"></div> ${text}`:text;
-  if(btnId==='scan-btn')btn.disabled=loading||!pendingImageBase64;
-  else btn.disabled=loading;
-}
+function closeDayDetail(){drillDownDate=null;renderLog();}
+function renderEntryHTML(e,editable){return `<div class="log-entry"><div class="log-emoji">${e.emoji||'🍽'}</div><div class="log-info"><div class="log-name">${e.food}</div><div class="log-sub">${e.amount} · ${formatTime(e.timestamp)} · P:${Math.round(e.protein)}g Sugar:${Math.round(e.sugar||0)}g</div></div><div class="log-kcal">${Math.round(e.kcal)}</div>${editable?`<button class="log-edit-btn" onclick="openEdit(${e.id})">Edit</button>`:''}<button class="log-delete-btn" onclick="confirmDelete(${e.id})">✕</button></div>`;}
+function showConfirm(title,msg,okLabel,okClass,cb){document.getElementById('confirm-title').textContent=title;document.getElementById('confirm-msg').textContent=msg;const btn=document.getElementById('confirm-ok-btn');btn.textContent=okLabel;btn.className='confirm-ok '+okClass;confirmCallback=cb;document.getElementById('confirm-modal').classList.add('show');}
+function closeConfirm(){document.getElementById('confirm-modal').classList.remove('show');confirmCallback=null;}
+function confirmOk(){if(confirmCallback)confirmCallback();closeConfirm();}
+function confirmDelete(id){const e=state.log.find(e=>e.id===id);showConfirm('Delete Entry',`Delete "${e?e.food:'this entry'}"? This cannot be undone.`,'Delete','danger',()=>{state.log=state.log.filter(e=>e.id!==id);saveLog();renderLog();renderHome();showToast('Deleted');});}
+function openEdit(id){editingId=id;const e=state.log.find(e=>e.id===id);if(!e)return;document.getElementById('e-name').value=e.food;document.getElementById('e-kcal').value=Math.round(e.kcal);document.getElementById('e-protein').value=Math.round(e.protein);document.getElementById('e-carbs').value=Math.round(e.carbs);document.getElementById('e-fat').value=Math.round(e.fat);document.getElementById('e-sugar').value=Math.round(e.sugar||0);document.getElementById('e-fiber').value=Math.round(e.fiber||0);document.getElementById('e-sodium').value=Math.round(e.sodium||0);document.getElementById('edit-modal').classList.add('show');}
+function closeEditModal(){document.getElementById('edit-modal').classList.remove('show');editingId=null;}
+function confirmSaveEdit(){showConfirm('Save Changes','Are you sure you want to save these changes?','Save','accent',()=>{if(!editingId)return;const idx=state.log.findIndex(e=>e.id===editingId);if(idx===-1)return;state.log[idx].food=document.getElementById('e-name').value;state.log[idx].kcal=parseFloat(document.getElementById('e-kcal').value)||0;state.log[idx].protein=parseFloat(document.getElementById('e-protein').value)||0;state.log[idx].carbs=parseFloat(document.getElementById('e-carbs').value)||0;state.log[idx].fat=parseFloat(document.getElementById('e-fat').value)||0;state.log[idx].sugar=parseFloat(document.getElementById('e-sugar').value)||0;state.log[idx].fiber=parseFloat(document.getElementById('e-fiber').value)||0;state.log[idx].sodium=parseFloat(document.getElementById('e-sodium').value)||0;saveLog();closeEditModal();renderLog();renderHome();showToast('✅ Entry updated!');});}
+function confirmDeleteFromModal(){const e=state.log.find(e=>e.id===editingId);showConfirm('Delete Entry',`Delete "${e?e.food:'this entry'}"? This cannot be undone.`,'Delete','danger',()=>{state.log=state.log.filter(e=>e.id!==editingId);saveLog();closeEditModal();renderLog();renderHome();showToast('Deleted');});}
+function confirmClearAll(){showConfirm('Clear All Data','This will permanently delete your entire food log. This cannot be undone.','Delete All','danger',()=>{state.log=[];saveLog();renderHome();showToast('All data cleared');});}
+function checkApiKey(){if(!state.settings.apiKey){showToast('⚙️ Add your Groq API key in Settings');return false;}return true;}
+function setBtnLoading(btnId,textId,loading,text){const btn=document.getElementById(btnId);document.getElementById(textId).innerHTML=loading?`<div class="spinner"></div> ${text}`:text;if(btnId==='scan-btn')btn.disabled=loading||!pendingImageBase64;else btn.disabled=loading;}
 let toastTimer;
-function showToast(msg) {
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove('show'),2400);
-}
-function calculateCalories() {
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2400);}
+function calculateCalories(){
   const age=parseFloat(document.getElementById('c-age').value);
   const gender=document.getElementById('c-gender').value;
   const height=parseFloat(document.getElementById('c-height').value);
@@ -825,11 +726,8 @@ function calculateCalories() {
   const goalAdj=parseFloat(document.getElementById('c-goal').value);
   if(!age||!height||!weight){showToast('Please fill in all fields');return;}
   let bmr=gender==='male'?10*weight+6.25*height-5*age+5:10*weight+6.25*height-5*age-161;
-  const tdee=Math.round(bmr*activity);
-  const target=tdee+goalAdj;
-  const protein=Math.round((target*0.30)/4);
-  const carbs=Math.round((target*0.40)/4);
-  const fat=Math.round((target*0.30)/9);
+  const tdee=Math.round(bmr*activity);const target=tdee+goalAdj;
+  const protein=Math.round((target*0.30)/4);const carbs=Math.round((target*0.40)/4);const fat=Math.round((target*0.30)/9);
   const goalLabels={'-500':'Goal: Lose ~0.5 kg per week','-250':'Goal: Lose ~0.25 kg per week','0':'Goal: Maintain current weight','250':'Goal: Gain ~0.25 kg per week','500':'Goal: Gain ~0.5 kg per week'};
   document.getElementById('calc-tdee').textContent=Math.round(target);
   document.getElementById('calc-bmr').textContent=Math.round(bmr)+' kcal';
@@ -839,20 +737,9 @@ function calculateCalories() {
   document.getElementById('calc-fat').textContent=fat+'g';
   document.getElementById('calc-goal-label').textContent=goalLabels[String(goalAdj)]||'';
   window._calcResult={kcal:Math.round(target),protein,carbs,fat};
-  const card=document.getElementById('calc-result');
-  card.classList.add('show');
-  card.scrollIntoView({behavior:'smooth',block:'nearest'});
+  const card=document.getElementById('calc-result');card.classList.add('show');card.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-function applyCalculatedGoals() {
-  if(!window._calcResult)return;
-  const r=window._calcResult;
-  state.settings.kcal=r.kcal; state.settings.protein=r.protein;
-  state.settings.carbs=r.carbs; state.settings.fat=r.fat;
-  localStorage.setItem('kcalai_settings',JSON.stringify(state.settings));
-  applySettingsToUI(); renderHome();
-  showToast('✅ Goals applied to Settings!');
-  setTimeout(()=>goTo('settings'),800);
-}
+function applyCalculatedGoals(){if(!window._calcResult)return;const r=window._calcResult;state.settings.kcal=r.kcal;state.settings.protein=r.protein;state.settings.carbs=r.carbs;state.settings.fat=r.fat;localStorage.setItem('kcalai_settings',JSON.stringify(state.settings));applySettingsToUI();renderHome();showToast('✅ Goals applied to Settings!');setTimeout(()=>goTo('settings'),800);}
 document.getElementById('edit-modal').addEventListener('click',function(e){if(e.target===this)closeEditModal();});
 document.getElementById('confirm-modal').addEventListener('click',function(e){if(e.target===this)closeConfirm();});
 init();
